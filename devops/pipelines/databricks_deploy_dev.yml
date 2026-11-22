@@ -1,0 +1,120 @@
+trigger:
+  branches:
+    include:
+      - development
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: adb-dev-global-soc-variable-group
+
+stages:
+  - stage: QualityChecks
+    displayName: Code quality checks
+
+    jobs:
+      - job: CheckPython
+        displayName: Check Python sources
+
+        steps:
+          - checkout: self
+            clean: true
+            fetchDepth: 0
+
+          - task: UsePythonVersion@0
+            displayName: Use Python 3.11
+            inputs:
+              versionSpec: "3.11"
+
+          - script: |
+              set -e
+
+              python -m compileall src
+            displayName: Validate Python syntax
+
+  - stage: Validate
+    displayName: Validate GSOC bundle
+    dependsOn: QualityChecks
+    condition: succeeded()
+
+    jobs:
+      - job: ValidateBundle
+        displayName: Validate Databricks bundle
+        
+
+        steps:
+          - checkout: self
+            clean: true
+            fetchDepth: 0
+
+          - script: |
+              set -e
+
+              curl -fsSL \
+                https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh \
+                | sh
+
+              databricks version
+            displayName: Install Databricks CLI
+
+          - script: |
+              set -e
+
+              echo "Databricks identity:"
+              databricks current-user me -t dev
+
+              echo "Validating DEV bundle:"
+              databricks bundle validate -t dev
+            displayName: Validate DEV bundle
+            env:
+              DATABRICKS_HOST: $(DATABRICKS_HOST)
+              DATABRICKS_TOKEN: $(DATABRICKS_TOKEN)
+
+  - stage: DeployDev
+    displayName: Deploy GSOC to DEV
+    dependsOn: Validate
+    condition: succeeded()
+
+    jobs:
+      - deployment: DeployDatabricksDev
+        displayName: Deploy bundle to Databricks DEV
+        environment: databricks_dev
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  clean: true
+                  fetchDepth: 0
+
+                - script: |
+                    set -e
+
+                    curl -fsSL \
+                      https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh \
+                      | sh
+
+                    databricks version
+                  displayName: Install Databricks CLI
+
+                - script: |
+                    set -e
+
+                    echo "Databricks identity:"
+                    databricks current-user me -t dev
+
+                    echo "Bundle summary:"
+                    databricks bundle summary -t dev
+
+                    echo "Deploying GSOC to DEV:"
+                    databricks bundle deploy \
+                      -t dev \
+                      --auto-approve
+                  displayName: Deploy DEV bundle
+                  env:
+                    DATABRICKS_HOST: $(DATABRICKS_HOST)
+                    DATABRICKS_TOKEN: $(DATABRICKS_TOKEN)

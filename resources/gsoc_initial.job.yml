@@ -1,0 +1,35 @@
+resources:
+  jobs:
+    GSOC_CDP_Initial_Load:
+      name: GSOC_CDP_Initial_Load_(TO_RUN_MANUALLY)
+      tasks:
+        - task_key: Bronze_Initial_Load
+          notebook_task:
+            notebook_path: ../notebooks/ingestion/cdp_initial_load.py
+            source: WORKSPACE
+          job_cluster_key: Bronze_Initial_Load_cluster
+        - task_key: Silver_Initial_Load
+          depends_on:
+            - task_key: Bronze_Initial_Load
+          notebook_task:
+            notebook_path: ../notebooks/ingestion/silver_initial.py
+            source: WORKSPACE
+          job_cluster_key: Bronze_Initial_Load_cluster
+      job_clusters:
+        - job_cluster_key: Bronze_Initial_Load_cluster
+          new_cluster:
+            cluster_name: ""
+            spark_version: 17.3.x-scala2.13
+            node_type_id: Standard_DS3_v2
+            spark_env_vars:
+              PYSPARK_PYTHON: /databricks/python3/bin/python3
+            data_security_mode: DATA_SECURITY_MODE_DEDICATED
+            runtime_engine: STANDARD
+            kind: CLASSIC_PREVIEW
+            is_single_node: true
+      max_concurrent_runs: 1
+      queue:
+        enabled: false
+      parameters:
+        - name: environment
+          default: ${var.environment}
