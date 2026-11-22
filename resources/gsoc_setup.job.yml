@@ -1,0 +1,55 @@
+resources:
+  jobs:
+    GSOC_SetupFull:
+      name: GSOC SetupFull
+      schedule:
+        quartz_cron_expression: 48 0 0 * * ?
+        timezone_id: Europe/Paris
+        pause_status: ${var.schedule_pause_status}
+      tasks:
+        - task_key: Bronze_FullSetup
+          notebook_task:
+            notebook_path: ../notebooks/ingestion/setup_full_load.py
+            source: WORKSPACE
+          job_cluster_key: Setup_job
+        - task_key: Collibra_Update
+          notebook_task:
+            notebook_path: ../notebooks/governance/Update_DTM.py
+            source: WORKSPACE
+          job_cluster_key: Setup_job
+        - task_key: Silver_FullSetup
+          depends_on:
+            - task_key: Bronze_FullSetup
+            - task_key: Collibra_Update
+          notebook_task:
+            notebook_path: ../notebooks/ingestion/silver_setup.py
+            source: WORKSPACE
+          job_cluster_key: Setup_job
+      job_clusters:
+        - job_cluster_key: Setup_job
+          new_cluster:
+            cluster_name: ""
+            spark_version: 17.3.x-scala2.13
+            spark_conf:
+              spark.master: local[*, 4]
+              spark.databricks.cluster.profile: singleNode
+            azure_attributes:
+              first_on_demand: 1
+              availability: SPOT_WITH_FALLBACK_AZURE
+              spot_bid_max_price: -1
+            node_type_id: Standard_DS3_v2
+            driver_node_type_id: Standard_DS3_v2
+            custom_tags:
+              ResourceClass: SingleNode
+            spark_env_vars:
+              PYSPARK_PYTHON: /databricks/python3/bin/python3
+            enable_elastic_disk: true
+            data_security_mode: SINGLE_USER
+            runtime_engine: STANDARD
+            num_workers: 0
+      max_concurrent_runs: 1
+      queue:
+        enabled: false
+      parameters:
+        - name: environment
+          default: ${var.environment}
