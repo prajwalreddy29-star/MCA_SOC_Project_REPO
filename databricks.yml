@@ -1,0 +1,71 @@
+# Declarative Automation Bundle configuration, more info here: https://docs.databricks.com/en/dev-tools/bundles/settings.html
+bundle:
+  name: "Datalake-GSOC"
+
+include:
+  - resources/*.yml
+
+sync:
+  include:
+    - src/**
+    - notebooks/**
+
+variables:
+  environment:
+    description: Target deployment environment
+
+  schedule_pause_status:
+    description: Schedule state for the target environment
+
+  job_access_group:
+    description: Group allowed to run deployed jobs
+
+permissions:
+  - group_name: ${var.job_access_group}
+    level: CAN_RUN
+  - group_name: admins
+    level: CAN_MANAGE
+
+targets:
+  # The 'dev_personal' target, for development purposes. This target is the default.
+  dev_personal:
+    default: true
+    mode: development
+    workspace:
+      host: https://adb-dev-example.azuredatabricks.net
+    variables:
+      environment: dev
+      schedule_pause_status: PAUSED
+      job_access_group: AZ-SOC-Non-Prod
+
+  # The 'dev' target, to deploy in development
+  dev:
+    git:
+      branch: development
+
+    workspace:
+      host: https://adb-dev-example.azuredatabricks.net
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+      file_path: /Workspace/${bundle.name}
+
+    variables:
+      environment: dev
+      schedule_pause_status: PAUSED
+      job_access_group: AZ-SOC-Non-Prod
+
+  # The 'prod' target, used for production deployment.
+  prod:
+    mode: production
+
+    git:
+      branch: master
+
+    workspace:
+      host: https://adb-prod-example.azuredatabricks.net
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+      file_path: /Workspace/${bundle.name}
+
+    variables:
+      environment: prod
+      schedule_pause_status: UNPAUSED
+      job_access_group: AZ-SOC-Prod
